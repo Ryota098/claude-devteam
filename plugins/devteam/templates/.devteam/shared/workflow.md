@@ -20,6 +20,11 @@
 3. 仕様変更があれば `product/current-spec.md` に反映する
 4. 重要判断は `shared/decisions.md` に残す
 
+## よく使う command
+- 初期化: `/devteam:dt-init`
+- 既存理解: `/devteam:dt-discover`
+- 引き継ぎ: `/devteam:dt-handoff`
+
 ## 実装から監査までの流れ
 
 ### API 実装フロー
