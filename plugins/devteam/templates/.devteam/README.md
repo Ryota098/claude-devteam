@@ -4,16 +4,16 @@
 
 ## 使い始め方
 1. プロジェクト配下で Claude Code を起動する
-2. `/init` を実行する
-3. 既存案件なら `/discover` を実行する
+2. `/devteam-init` を実行する
+3. 既存案件なら `/devteam-discover` を実行する
 4. 新しいセッションではまず以下を読む
    - `shared/workflow.md`
    - `shared/session-handoff.md`
    - `pm/current-task.md`
 
 ## 主な使い方
-- プロジェクト理解: `/discover`
-- セッション引き継ぎ: `/handoff`
+- プロジェクト理解: `/devteam-discover`
+- セッション引き継ぎ: `/devteam-handoff`
 - 実装開始前: `product/current-spec.md` と `project/current-workset.md` を確認
 - 実装後: `backend/implementation-summary.md` または `frontend/implementation-summary.md` を更新
 - biz向け整理: `biz/current-brief.md` を更新

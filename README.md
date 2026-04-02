@@ -25,7 +25,7 @@ Claude Code で以下を実行します。
 対象プロジェクト配下で Claude Code を起動し、以下を実行します。
 
 ```text
-/init
+/devteam-init
 ```
 
 これでプロジェクト内に `.devteam/` が作られます。
@@ -33,18 +33,18 @@ Claude Code で以下を実行します。
 既存案件の理解を進めたい場合は、続けて以下を実行します。
 
 ```text
-/discover
+/devteam-discover
 ```
 
 セッションを切り替える前は以下を実行します。
 
 ```text
-/handoff
+/devteam-handoff
 ```
 
 ## `.devteam/` の構成
 
-`/init` で、プロジェクト内に次のような構成を作る想定です。
+`/devteam-init` で、プロジェクト内に次のような構成を作る想定です。
 
 ```text
 .devteam/
@@ -100,23 +100,23 @@ Claude Code で以下を実行します。
 
 ## 2つの初期化方法の違い
 
-- 現在の初期化方法は `/init` のみです
+- 現在の初期化方法は `/devteam-init` のみです
 - plugin を install したうえで Claude Code から実行する前提です
 - ユーザーがこの repository を自分で clone して持つ必要はありません
 - `.devteam/` の生成は Claude Code plugin 経由の 1 ルートに統一します
 
 ## 3つの command
 
-- `/init`
+- `/devteam-init`
   - `.devteam/` のディレクトリ、README、主要テンプレートを作る command
-- `/discover`
+- `/devteam-discover`
   - 既存 docs とソースコードを読んで、architecture や project 系のドキュメントを埋める command
-- `/handoff`
+- `/devteam-handoff`
   - 現在の状態を次セッション向けに圧縮して `shared/session-handoff.md` へ残す command
 
 ## `discover` と `handoff` の使い所
 
-### `/discover`
+### `/devteam-discover`
 
 次のような時に使います。
 
@@ -137,7 +137,7 @@ Claude Code で以下を実行します。
 - `pm/current-task.md`
 - `shared/session-handoff.md`
 
-### `/handoff`
+### `/devteam-handoff`
 
 次のような時に使います。
 
@@ -156,11 +156,11 @@ Claude Code で以下を実行します。
 
 ## command と役割ディレクトリの違い
 
-この plugin では、まず `init / discover / handoff` の 3 つを command として持ちます。
+この plugin では、まず `devteam-init / devteam-discover / devteam-handoff` の 3 つを command として持ちます。
 
 - command
   - Claude Code に何をさせるかの入口
-  - 例: `/init`
+  - 例: `/devteam-init`
 - 役割ディレクトリ
   - 調査、設計、実装、監査、biz などの知識や記録の置き場
   - 例: `research/`, `architecture/`, `backend/`, `qa/`, `biz/`
@@ -206,9 +206,9 @@ Claude Code で以下を実行します。
 - `plugins/devteam/.claude-plugin/plugin.json` の `name` と version が期待どおりであること
 - 公開したくない情報が `.devteam` テンプレートや README に入っていないこと
 - plugin install 後の想定コマンドが次の 3 つであること
-  - `/init`
-  - `/discover`
-  - `/handoff`
+  - `/devteam-init`
+  - `/devteam-discover`
+  - `/devteam-handoff`
 
 ## 運用の考え方
 
@@ -222,42 +222,42 @@ Claude Code で以下を実行します。
 
 最初は以下の 3 command だけで運用を始めます。
 
-- `/init`
-- `/discover`
-- `/handoff`
+- `/devteam-init`
+- `/devteam-discover`
+- `/devteam-handoff`
 
 必要に応じて今後追加しうる command の例:
 
-- `/plan`
-- `/audit`
-- `/biz-brief`
+- `/devteam-plan`
+- `/devteam-audit`
+- `/devteam-biz-brief`
 
 ## 実際の利用フロー
 
 ### 新規プロジェクト
 
 1. Claude Code で plugin を install する
-2. 対象 project root で `/init`
+2. 対象 project root で `/devteam-init`
 3. 壁打ちをしながら `product/current-spec.md` を埋める
 4. `pm/current-task.md` と `project/current-workset.md` を整える
 5. 実装を進める
-6. セッションを切り替える前に `/handoff`
+6. セッションを切り替える前に `/devteam-handoff`
 
 ### 既存プロジェクト
 
 1. Claude Code で plugin を install する
-2. 対象 project root で `/init`
-3. 続けて `/discover`
+2. 対象 project root で `/devteam-init`
+3. 続けて `/devteam-discover`
 4. `architecture/*` と `product/current-spec.md` を確認する
 5. `pm/current-task.md` の次タスクから着手する
-6. セッションを切り替える前に `/handoff`
+6. セッションを切り替える前に `/devteam-handoff`
 
 ### 監査前後
 
 1. 実装後に `backend/implementation-summary.md` または `frontend/implementation-summary.md` を更新する
-2. 監査セッションへ渡す前に `/handoff`
+2. 監査セッションへ渡す前に `/devteam-handoff`
 3. 監査結果は `qa/*` に残す
-4. 修正後に必要なら再度 `/handoff`
+4. 修正後に必要なら再度 `/devteam-handoff`
 
 ## ライセンス
 
