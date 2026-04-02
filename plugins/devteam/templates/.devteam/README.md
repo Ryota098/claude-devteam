@@ -4,19 +4,33 @@
 
 ## 使い始め方
 1. プロジェクト配下で Claude Code を起動する
-2. `/devteam:init` を実行する
-3. 既存案件なら `/devteam:discover` を実行する
+2. `/init` を実行する
+3. 既存案件なら `/discover` を実行する
 4. 新しいセッションではまず以下を読む
    - `shared/workflow.md`
    - `shared/session-handoff.md`
    - `pm/current-task.md`
 
 ## 主な使い方
-- プロジェクト理解: `/devteam:discover`
-- セッション引き継ぎ: `/devteam:handoff`
+- プロジェクト理解: `/discover`
+- セッション引き継ぎ: `/handoff`
 - 実装開始前: `product/current-spec.md` と `project/current-workset.md` を確認
 - 実装後: `backend/implementation-summary.md` または `frontend/implementation-summary.md` を更新
 - biz向け整理: `biz/current-brief.md` を更新
+
+## 実装後の監査フロー
+
+### API
+- 実装後に `backend/summary-prompt.md` を使って仕様サマリを作る
+- サマリは `backend/implementation-summary.md` に保存する
+- 監査時は `qa/api-audit-prompt.md` と一緒に、実装コードとテストコードを監査 AI へ渡す
+- 監査結果は `qa/latest-audit.md` と `qa/uncovered-items.md` に残す
+
+### Frontend
+- 実装後に `frontend/summary-prompt.md` を使って仕様サマリを作る
+- サマリは `frontend/implementation-summary.md` に保存する
+- 監査時は `qa/frontend-audit-prompt.md` と一緒に、実装コードを監査 AI へ渡す
+- 監査結果は `qa/latest-audit.md` と `qa/uncovered-items.md` に残す
 
 ## ディレクトリの役割
 - `shared/`: 共通ルール、意思決定、引き継ぎ
@@ -35,8 +49,6 @@
 - `pm/current-task.md`: 今やる1タスク
 - `product/current-spec.md`: 現在有効な仕様
 - `project/current-workset.md`: 今回触る範囲
-- `backend/current-feature.md`: バックエンド側の現在仕様
-- `frontend/current-feature.md`: フロントエンド側の現在仕様
 - `biz/current-brief.md`: biz向け説明内容の最新版
 
 ## 更新ルール

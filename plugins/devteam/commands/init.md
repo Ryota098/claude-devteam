@@ -34,7 +34,7 @@ description: 現在のプロジェクトに .devteam ワークスペースを初
 - `current-*` は最新状態のためのファイルとして作る
 
 初期化後の案内:
-- 既存案件なら次に `/devteam-discover`
+- 既存案件なら次に `/discover`
 - 新規案件なら `product/current-spec.md` から壁打ち開始
 
 出力:

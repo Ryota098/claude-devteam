@@ -20,6 +20,35 @@
 3. 仕様変更があれば `product/current-spec.md` に反映する
 4. 重要判断は `shared/decisions.md` に残す
 
+## 実装から監査までの流れ
+
+### API 実装フロー
+
+1. 実装 AI が機能実装とテストを行う
+2. `backend/summary-prompt.md` を使って仕様サマリを作る
+3. 仕様サマリは `backend/implementation-summary.md` に保存する
+4. 監査 AI に以下を渡す
+   - `qa/api-audit-prompt.md`
+   - `backend/implementation-summary.md`
+   - 実装コード
+   - テストコード
+5. 監査結果は `qa/latest-audit.md` や `qa/uncovered-items.md` に残す
+6. 実装 AI が指摘を反映する
+7. 必要なら summary → audit を再実行する
+
+### Frontend 実装フロー
+
+1. 実装 AI が UI / ロジックを実装する
+2. `frontend/summary-prompt.md` を使って仕様サマリを作る
+3. 仕様サマリは `frontend/implementation-summary.md` に保存する
+4. 監査 AI に以下を渡す
+   - `qa/frontend-audit-prompt.md`
+   - `frontend/implementation-summary.md`
+   - 実装コード
+5. 監査結果は `qa/latest-audit.md` や `qa/uncovered-items.md` に残す
+6. 実装 AI が指摘を反映する
+7. 必要なら summary → audit を再実行する
+
 ## 記録ルール
 - `current-*`: 最新状態に保つ
 - `decisions`, `source-log`, `deviations`, `audit`: 履歴を残す
