@@ -1,5 +1,5 @@
 {
   "name": "devteam",
   "description": "Scaffold and operate a project-local .devteam workspace for full-stack product work.",
-  "version": "0.1.3"
+  "version": "0.2.0"
 }
