@@ -11,12 +11,24 @@
    - `shared/session-handoff.md`
    - `pm/current-task.md`
 
+`/devteam:dt-init` は初回セットアップ用です。`/devteam:dt-handoff` は初回には不要で、作業後にセッションを切り替える時に使います。
+
 ## 主な使い方
 - プロジェクト理解: `/devteam:dt-discover`
 - セッション引き継ぎ: `/devteam:dt-handoff`
 - 実装開始前: `product/current-spec.md` と `project/current-workset.md` を確認
 - 実装後: `backend/implementation-summary.md` または `frontend/implementation-summary.md` を更新
 - biz向け整理: `biz/current-brief.md` を更新
+
+## command の使い分け
+- 初回セットアップ
+  - `/devteam:dt-init`
+- 既存案件の把握
+  - `/devteam:dt-init` の後に `/devteam:dt-discover`
+- セッション切り替え前
+  - `/devteam:dt-handoff`
+
+`/devteam:dt-init` は template をそのまま揃える初期化 command です。project 固有の理解や要約は `/devteam:dt-discover` で追加します。
 
 ## 実装後の監査フロー
 

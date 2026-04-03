@@ -17,30 +17,52 @@ Claude Code で以下を実行します。
 
 ```text
 /plugin marketplace add Ryota098/claude-devteam
+```
+```text
 /plugin install devteam@claude-devteam
 ```
 
+install 時に Claude Code の標準 UI で scope 選択が表示されます。
+
+- `Install for you (user scope)`
+  - 個人の標準ツールとして複数プロジェクトで使う時の推奨設定
+- `Install for all collaborators on this repository (project scope)`
+  - その repository の共同開発者にも同じ plugin を前提化したい時
+- `Install for you, in this repo only (local scope)`
+  - 検証や一時利用向け
+
+通常運用では `user scope`、動作確認では `local scope` を推奨します。
+
 ## クイックスタート
 
-対象プロジェクト配下で Claude Code を起動し、以下を実行します。
+対象プロジェクト配下で Claude Code を起動し、まず以下を実行します。
 
 ```text
 /devteam:dt-init
 ```
 
-これでプロジェクト内に `.devteam/` が作られます。
+これでプロジェクト内に `.devteam/` が作られます。`dt-init` は初回セットアップ用です。
 
-既存案件の理解を進めたい場合は、続けて以下を実行します。
+既存案件の理解を進めたい場合は、続けて以下を実行します。新規案件ならここは不要です。
 
 ```text
 /devteam:dt-discover
 ```
 
-セッションを切り替える前は以下を実行します。
+`dt-handoff` は初回セットアップではなく、作業後にセッションを切り替える時に使います。
 
 ```text
 /devteam:dt-handoff
 ```
+
+使い分け:
+
+- 初回セットアップ
+  - `/devteam:dt-init`
+- 既存案件の把握
+  - `/devteam:dt-init` の後に `/devteam:dt-discover`
+- セッション切り替え前
+  - `/devteam:dt-handoff`
 
 ## `.devteam/` の構成
 
@@ -108,11 +130,13 @@ Claude Code で以下を実行します。
 ## 3つの command
 
 - `/devteam:dt-init`
-  - `.devteam/` のディレクトリ、README、主要テンプレートを作る command
+  - `.devteam/` の template 一式を固定展開する command
 - `/devteam:dt-discover`
   - 既存 docs とソースコードを読んで、architecture や project 系のドキュメントを埋める command
 - `/devteam:dt-handoff`
   - 現在の状態を次セッション向けに圧縮して `shared/session-handoff.md` へ残す command
+
+`dt-init` は deterministic な初期化を目的にしており、template をそのまま揃えるための command です。project 固有の理解や要約は `dt-discover` が担当します。
 
 ## `discover` と `handoff` の使い所
 
