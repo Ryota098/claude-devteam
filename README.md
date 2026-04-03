@@ -52,6 +52,11 @@ Claude Code で以下を実行します。
 ```text
 /plugin install devteam@claude-devteam
 ```
+```text
+/reload-plugins
+```
+
+`/plugin install` 直後は、そのセッションで plugin command を使えるようにするため `/reload-plugins` が必要です。
 
 install 時に Claude Code の標準 UI で scope 選択が表示されます。
 
