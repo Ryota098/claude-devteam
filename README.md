@@ -1,44 +1,36 @@
 # claude-devteam
 
-`claude-devteam` は、Claude Code でプロジェクトごとの `.devteam/` ワークスペースを作るための plugin です。
+`claude-devteam` は、Claude Code 上で `.devteam/` を使った開発運用を始めるための plugin です。
 
-目的は、長い 1 セッションに依存せず、調査・要件整理・実装・監査・biz 向け資料作成を、短命セッション前提で継続できるようにすることです。
+これは「AI が自律的に開発する plugin」ではなく、**開発用ドキュメント基盤を揃え、更新しやすくする plugin** です。
 
-簡単に言うと、この plugin は **`.devteam/` という開発用ドキュメント基盤を作って管理しやすくするための plugin** です。
-
-- 初期化では、`.devteam/` の共通テンプレート一式を作成します
-- `discover` と `handoff` では、`.devteam/` 配下の md ファイルを整理・更新します
-- 実際の実装、調査、修正、監査の実行自体は、ユーザーが Claude に指示して進めます
-
-つまり、AI が自律的に開発を進める plugin というより、**開発運用を支えるドキュメント管理 plugin** という位置づけです。
+- 初期化では、少数の共通テンプレートを `.devteam/` に配置します
+- `discover` では、既存コードや docs を読んで `.devteam/` を更新します
+- `handoff` では、次セッション向けに状態を圧縮して残します
+- 実装、調査、監査の実行自体は、ユーザーが Claude に依頼して進めます
 
 <br>
 
 # 目次
 
-- [この plugin でできること](#この-plugin-でできること)
+- [できること](#できること)
 - [インストール](#インストール)
 - [クイックスタート](#クイックスタート)
-- [`.devteam/` の構成](#devteam-の構成)
-- [各ディレクトリの役割](#各ディレクトリの役割)
-- [主に使うファイル](#主に使うファイル)
+- [最小構成](#最小構成)
 - [3つの command](#3つの-command)
-- [`discover` と `handoff` の使い所](#discover-と-handoff-の使い所)
-- [command と役割ディレクトリの違い](#command-と役割ディレクトリの違い)
 - [日常運用フロー](#日常運用フロー)
 - [Claude への頼み方](#claude-への頼み方)
-- [運用の考え方](#運用の考え方)
-- [今後の想定](#今後の想定)
+- [運用ルール](#運用ルール)
 - [ライセンス](#ライセンス)
 
 <br>
 
-# この plugin でできること
+# できること
 
-- `.devteam/` の deterministic な初期構成を作るための shell script を提供する
-- 既存コードベースを読んで、構造理解用ドキュメントを埋める
-- セッション終了時に handoff を残す
-- backend / frontend / qa / biz などの役割ごとの記録場所を統一する
+- `.devteam/` の deterministic な初期構成を shell script で作る
+- 既存案件の理解を `.devteam/` の少数ファイルへ整理する
+- セッション切替時に handoff を残す
+- 監査用の summary prompt / audit prompt を共通化する
 
 <br>
 
@@ -49,18 +41,18 @@ Claude Code で以下を実行します。
 ```text
 /plugin marketplace add Ryota098/claude-devteam
 ```
+
 ```text
 /plugin install devteam@claude-devteam
 ```
+
 ```text
 /reload-plugins
 ```
 
 `/plugin install` 直後は、そのセッションで plugin command を使えるようにするため `/reload-plugins` が必要です。
 
-install 時に Claude Code の標準 UI で scope 選択が表示されます。
-
-簡単な目安:
+scope の目安:
 
 - `user scope`
   - 自分の複数プロジェクトで使う通常運用向け
@@ -69,120 +61,75 @@ install 時に Claude Code の標準 UI で scope 選択が表示されます。
 - `local scope`
   - その repository だけで試す時
 
-- `Install for you (user scope)`
-  - 個人の標準ツールとして複数プロジェクトで使う時の推奨設定
-- `Install for all collaborators on this repository (project scope)`
-  - その repository の共同開発者にも同じ plugin を前提化したい時
-- `Install for you, in this repo only (local scope)`
-  - 検証や一時利用向け
-
 通常運用では `user scope`、動作確認では `local scope` を推奨します。
 
 <br>
 
 # クイックスタート
 
-## 1. 初期化は shell script で行う
+## 1. 初期化
 
-この plugin は、対象プロジェクト配下で Claude Code を起動して使う前提です。`.devteam/` の初期化は shell script を使うのが正式ルートです。これにより、README / workflow / prompt 群まで全メンバーで同一内容になります。
-
-手順はこれだけです。
-
-1. 対象プロジェクト配下で Claude Code を起動する
-2. そのまま次を実行する
+対象プロジェクト配下で Claude Code を起動し、次を実行します。
 
 ```bash
 sh ~/.claude/plugins/marketplaces/claude-devteam/scripts/init-devteam.sh .
 ```
 
-`~/.claude/plugins/marketplaces/claude-devteam/` は plugin install 後に Claude Code が保持する marketplace の標準配置先です。ユーザーごとにホームディレクトリは異なっても、`~/.claude/...` で書けばそのまま使えます。
+`~/.claude/plugins/marketplaces/claude-devteam/` は plugin install 後に Claude Code が保持する marketplace の標準配置先です。
 
-## 2. 初期化後に Claude Code command を使う
+## 2. 既存案件なら discover
 
-`.devteam/` 作成後に、対象プロジェクト配下で Claude Code を起動します。
-
-既存案件の理解を進めたい場合は以下を実行します。新規案件ならここは不要です。
+既存コードや docs の把握が必要なら、続けてこれを実行します。
 
 ```text
 /devteam:dt-discover
 ```
 
-`dt-handoff` は初回セットアップではなく、作業後にセッションを切り替える時に使います。
+新規案件や、まだ実装がほぼ無い段階では通常不要です。
+
+## 3. セッション切替時は handoff
+
+作業を切り替える前にこれを実行します。
 
 ```text
 /devteam:dt-handoff
 ```
 
-使い分け:
-
-- 初回セットアップ
-  - `scripts/init-devteam.sh`
-- 既存案件の把握
-  - `scripts/init-devteam.sh` の後に `/devteam:dt-discover`
-- セッション切り替え前
-  - `/devteam:dt-handoff`
-
 <br>
 
-# `.devteam/` の構成
+# 最小構成
 
-`scripts/init-devteam.sh` で、プロジェクト内に次のような構成を作る想定です。
+この plugin は、まず以下の少数ファイルを中心に回す想定です。
 
 ```text
 .devteam/
 ├── README.md
 ├── CLAUDE.md
-├── shared/
-├── research/
-├── architecture/
-├── product/
-├── pm/
-├── project/
-├── backend/
-├── frontend/
-├── qa/
-└── biz/
+├── current/
+│   ├── spec.md
+│   ├── task.md
+│   └── handoff.md
+├── context/
+│   ├── project.md
+│   ├── decisions.md
+│   └── research.md
+├── review/
+│   ├── api-summary-prompt.md
+│   ├── frontend-summary-prompt.md
+│   ├── api-audit-prompt.md
+│   ├── frontend-audit-prompt.md
+│   ├── implementation-summary.md
+│   └── audit.md
+└── archive/
+    └── notes.md
 ```
 
-<br>
+日常的に主に見るのは以下です。
 
-# 各ディレクトリの役割
-
-- `shared/`
-  - 共通ルール、意思決定、セッション引き継ぎを置く場所
-- `research/`
-  - 市場調査、競合調査、参考事例、外部情報を整理する場所
-- `architecture/`
-  - 既存コード理解、構造把握、依存関係、制約、実装ルールを整理する場所
-- `product/`
-  - 要件、仕様、スコープ、受け入れ条件を整理する場所
-- `pm/`
-  - タスク分解、優先順位、現在タスク、ブロッカーを整理する場所
-- `project/`
-  - backend / frontend をまたぐ作業範囲や統合観点を整理する場所
-- `backend/`
-  - API、契約、実装方針、実装後サマリを整理する場所
-- `frontend/`
-  - UI 契約、状態、実装方針、実装後サマリを整理する場所
-- `qa/`
-  - 監査ルール、監査結果、未網羅、回帰リスクを整理する場所
-- `biz/`
-  - 非技術者向け仕様書、提案資料、説明用要約を整理する場所
-
-<br>
-
-# 主に使うファイル
-
-- `shared/session-handoff.md`
-  - 次セッションに渡す要点
-- `pm/current-task.md`
-  - 今やる 1 タスク
-- `product/current-spec.md`
-  - 現時点で有効な仕様
-- `project/current-workset.md`
-  - 今回触る範囲と影響整理
-- `biz/current-brief.md`
-  - biz 向けに今説明すべき内容
+- `current/spec.md`
+- `current/task.md`
+- `current/handoff.md`
+- `review/audit.md`
 
 <br>
 
@@ -191,238 +138,124 @@ sh ~/.claude/plugins/marketplaces/claude-devteam/scripts/init-devteam.sh .
 - `/devteam:dt-init`
   - shell script 初期化を案内する補助 command
 - `/devteam:dt-discover`
-  - 既存 docs とソースコードを読んで、architecture や project 系のドキュメントを埋める command
+  - 既存 docs とソースコードを読み、`context/project.md` と `current/*` を更新する command
 - `/devteam:dt-handoff`
-  - 現在の状態を次セッション向けに圧縮して `shared/session-handoff.md` へ残す command
-
-`dt-init` は deterministic な初期化を自分で生成する command ではありません。正式な初期化は shell script が行い、project 固有の理解や要約は `dt-discover` が担当します。
-
-<br>
-
-# `discover` と `handoff` の使い所
-
-`dt-discover` は既存プロジェクト理解を進める時に使い、`dt-handoff` はセッションを切り替える時に使います。
-
-## `/devteam:dt-discover`
-
-次のような時に使います。
-
-- 既存案件に途中参加した時
-- セッションを切り替えた後に repo 全体の理解を戻したい時
-- monorepo や大きめの repository で、構造を整理したい時
-- docs とコードのズレを把握したい時
-
-主に更新されるのは以下です。
-
-- `architecture/system-overview.md`
-- `architecture/module-map.md`
-- `architecture/dependencies.md`
-- `architecture/constraints.md`
-- `architecture/unknowns.md`
-- `product/current-spec.md`
-- `project/current-workset.md`
-- `pm/current-task.md`
-- `shared/session-handoff.md`
-
-## `/devteam:dt-handoff`
-
-次のような時に使います。
-
-- セッションが長くなって切り替えたい時
-- 実装が一区切りついた時
-- 監査セッションへ渡す前
-- backend / frontend / biz など別観点のセッションへ渡す前
-
-主に更新されるのは以下です。
-
-- `shared/session-handoff.md`
-- `pm/current-task.md`
-- `project/current-workset.md`
-- 必要に応じて backend / frontend 側の current 系ファイル
-- 必要に応じて `biz/current-brief.md`
-
-<br>
-
-# command と役割ディレクトリの違い
-
-この plugin では、まず `devteam:dt-init / devteam:dt-discover / devteam:dt-handoff` の 3 つを command として持ちます。
-
-- command
-  - Claude Code に何をさせるかの入口
-  - 例: `/devteam:dt-init`
-- 役割ディレクトリ
-  - 調査、設計、実装、監査、biz などの知識や記録の置き場
-  - 例: `research/`, `architecture/`, `backend/`, `qa/`, `biz/`
-
-つまり今の構成では、
-
-- `init / discover / handoff` = 実行コマンド
-- `backend / frontend / qa / biz ...` = ドキュメントの保存場所
-
-です。
+  - 現在の状態を `current/handoff.md` に圧縮して残す command
 
 <br>
 
 # 日常運用フロー
 
 ## 1. 壁打ち・調査
-- 目的
-  - 何を作るか、なぜ必要か、どういう方針で進めるかを整理する
-- 主に見るファイル
-  - `product/current-spec.md`
-  - `biz/current-brief.md`
-  - `research/*`
-- 主に更新するファイル
-  - `product/current-spec.md`
-  - `shared/decisions.md`
-  - `biz/current-brief.md`
-  - 必要なら `research/*`
-- Claude への依頼例
-  - 「この機能の目的、利用者、成功条件を整理して `product/current-spec.md` にまとめて」
-  - 「競合や参考実装を調べて `research/market-research.md` に整理して」
-  - 「参考URLを `research/source-log.md` に残して」
-  - 「非技術者向けに `biz/current-brief.md` に要点を書いて」
 
-## 2. 既存コードの把握
-- 既存案件では、クイックスタートで `/devteam:dt-discover` を実行した後にここを確認する
-- 主に埋まるファイル
-  - `architecture/system-overview.md`
-  - `architecture/module-map.md`
-  - `architecture/constraints.md`
-  - `architecture/unknowns.md`
-  - `project/current-workset.md`
-  - `pm/current-task.md`
+- 主に使うファイル
+  - `current/spec.md`
+  - `context/research.md`
+  - `context/decisions.md`
 - Claude への依頼例
-  - 「`/devteam:dt-discover` を実行して既存コードと docs を整理して」
-  - 「実行後に `architecture/system-overview.md` と `pm/current-task.md` を前提に、今どこから着手すべきか要約して」
+  - 「この機能の目的、利用者、成功条件を整理して `.devteam/current/spec.md` にまとめて」
+  - 「競合や参考実装を調べて `.devteam/context/research.md` に整理して」
+  - 「重要な判断だけ `.devteam/context/decisions.md` に残して」
 
-## 3. タスク化
-- 目的
-  - 仕様を、実装できる単位のタスクへ落とす
-- 主に見るファイル
-  - `product/current-spec.md`
-  - `architecture/*`
-- 主に更新するファイル
-  - `pm/current-task.md`
-  - `pm/task-breakdown.md`
-  - `project/current-workset.md`
-- Claude への依頼例
-  - 「この仕様を実装タスクへ分解して `pm/task-breakdown.md` に書いて」
-  - 「次にやる1タスクだけ `pm/current-task.md` に反映して」
-  - 「今回触る範囲を `project/current-workset.md` に整理して」
+## 2. ドキュメント更新
 
-## 4. 実装
-- 実装前に確認
-  - `architecture/coding-standards.md`
-  - `product/current-spec.md`
-  - `pm/current-task.md`
-  - `project/current-workset.md`
-- 実装中に必要なら更新
-  - `product/current-spec.md`
-  - `shared/decisions.md`
-  - `project/current-workset.md`
+- 主に使うファイル
+  - `current/spec.md`
+  - `context/decisions.md`
 - Claude への依頼例
-  - 「`architecture/coding-standards.md` を守ってこのタスクを実装して。必要なら関連 docs も更新して」
-  - 「実装しながら必要なら `product/current-spec.md` と `shared/decisions.md` も更新して」
-  - 「今回の変更範囲が広がったら `project/current-workset.md` に追記して」
+  - 「今の壁打ち結果を反映して、必要な `.devteam` を更新して」
+  - 「仕様変更があれば `.devteam/current/spec.md` と `.devteam/context/decisions.md` を更新して」
+
+## 3. タスク出し
+
+- 主に使うファイル
+  - `current/task.md`
+  - `current/spec.md`
+- Claude への依頼例
+  - 「この仕様を実装タスクへ分解して `.devteam/current/task.md` に反映して」
+  - 「今やる 1 タスクだけ明確にして」
+
+## 4. 実装 / テスト / 検証
+
+- 主に使うファイル
+  - `current/spec.md`
+  - `current/task.md`
+  - 必要なら `context/decisions.md`
+- Claude への依頼例
+  - 「このタスクを実装して。必要なら関連 docs も更新して」
+  - 「テストまで追加して、必要なら `.devteam/current/spec.md` も更新して」
 
 ## 5. 実装後のサマリ作成
+
 - API 実装後
-  - `backend/summary-prompt.md` を使って仕様サマリを作る
-  - 結果を `backend/implementation-summary.md` に保存する
+  - `review/api-summary-prompt.md`
 - Frontend 実装後
-  - `frontend/summary-prompt.md` を使って仕様サマリを作る
-  - 結果を `frontend/implementation-summary.md` に保存する
+  - `review/frontend-summary-prompt.md`
+- 保存先
+  - `review/implementation-summary.md`
 - Claude への依頼例
-  - API: 「`backend/summary-prompt.md` に従って仕様サマリを作り、`backend/implementation-summary.md` に保存して」
-  - Frontend: 「`frontend/summary-prompt.md` に従って仕様サマリを作り、`frontend/implementation-summary.md` に保存して」
+  - 「`.devteam/review/api-summary-prompt.md` に従って仕様サマリを作り、`.devteam/review/implementation-summary.md` に保存して」
+  - 「`.devteam/review/frontend-summary-prompt.md` に従って仕様サマリを作り、`.devteam/review/implementation-summary.md` に保存して」
 
 ## 6. 監査
-- API 監査
-  - `qa/api-audit-prompt.md`
-  - `backend/implementation-summary.md`
-  - 実装コード
-  - テストコード
-  を監査 AI に渡す
-- Frontend 監査
-  - `qa/frontend-audit-prompt.md`
-  - `frontend/implementation-summary.md`
-  - 実装コード
-  を監査 AI に渡す
-- 主に更新するファイル
-  - `qa/latest-audit.md`
-  - `qa/uncovered-items.md`
-- Claude への依頼例
-  - API: 「`qa/api-audit-prompt.md` に従って監査して。仕様サマリは `backend/implementation-summary.md`、対象は今回の実装コードとテストコードです。結果を `qa/latest-audit.md` にまとめて」
-  - Frontend: 「`qa/frontend-audit-prompt.md` に従って監査して。仕様サマリは `frontend/implementation-summary.md`、対象は今回の実装コードです。結果を `qa/latest-audit.md` にまとめて」
 
-## 7. 修正ループ
-- 監査結果を実装 AI に戻して修正する
-- 修正後は必要に応じて再度
-  - `backend/implementation-summary.md` または `frontend/implementation-summary.md`
-  - `qa/latest-audit.md`
-  を更新する
+- API 監査
+  - `review/api-audit-prompt.md`
+- Frontend 監査
+  - `review/frontend-audit-prompt.md`
+- 保存先
+  - `review/audit.md`
 - Claude への依頼例
-  - 「`qa/latest-audit.md` の指摘を反映して修正して」
-  - 「修正後に `backend/implementation-summary.md` または `frontend/implementation-summary.md` を更新して」
-  - 「必要なら再監査できる状態まで整えて」
+  - 「`.devteam/review/api-audit-prompt.md` に従って監査して。結果を `.devteam/review/audit.md` にまとめて」
+  - 「`.devteam/review/frontend-audit-prompt.md` に従って監査して。結果を `.devteam/review/audit.md` にまとめて」
+
+## 7. 修正
+
+- 主に使うファイル
+  - `review/audit.md`
+  - 必要なら `review/implementation-summary.md`
+- Claude への依頼例
+  - 「`.devteam/review/audit.md` の指摘を反映して修正して」
+  - 「修正後に必要なら `.devteam/review/implementation-summary.md` を更新して」
 
 ## 8. セッション切り替え
-- セッションを切り替える前に `/devteam:dt-handoff` を実行する
-- 次セッションではまず以下を読む
-  - `shared/session-handoff.md`
-  - `pm/current-task.md`
-  - 必要なら `project/current-workset.md`
+
+- 主に使うファイル
+  - `current/handoff.md`
+  - 必要なら `current/task.md`
 - Claude への依頼例
-  - 「`/devteam:dt-handoff` を実行して、次セッション向けに状態を整理して」
-  - 「handoff 更新後、次にやる1アクションだけ教えて」
+  - 「`/devteam:dt-handoff` を実行して次セッション向けに整理して」
 
 <br>
 
 # Claude への頼み方
 
-普段は `/` を打たず、普通に日本語で依頼して構いません。`/devteam:*` は定型処理を呼ぶ時だけ使います。
+普段はファイル名を細かく指定しなくて構いません。必要な保存先は Claude が `.devteam/` 内で判断する前提です。
 
-- 普通に会話で依頼する例
-  - 「この機能の要件を整理して `product/current-spec.md` にまとめて」
-  - 「競合を調べて `research/market-research.md` に整理して」
-  - 「次の実装タスクを `pm/current-task.md` に書いて」
-  - 「`architecture/coding-standards.md` を守ってこの機能を実装して」
-  - 「`backend/summary-prompt.md` を使って仕様サマリを作って」
-  - 「`qa/api-audit-prompt.md` に従って監査して」
-  - 「この内容を非技術者向けに `biz/current-brief.md` にまとめて」
+- そのまま使える依頼例
+  - 「この機能の要件を整理して、必要な `.devteam` を更新して」
+  - 「今やるべきタスクをまとめて、必要な `.devteam` を更新して」
+  - 「実装してテストして、必要なら docs も更新して」
+  - 「監査に回せる状態にして」
+  - 「次セッション向けに `.devteam` を整理して」
 
-- `/` を使う例
-  - `/devteam:dt-discover`
-    - 既存案件の理解を一気に進めたい時
-  - `/devteam:dt-handoff`
-    - セッションを切り替えたい時
+slash command を使うのは定型処理だけです。
+
+- `/devteam:dt-discover`
+  - 既存案件の理解を一気に進めたい時
+- `/devteam:dt-handoff`
+  - セッションを切り替えたい時
 
 <br>
 
-# 運用の考え方
+# 運用ルール
 
 - 会話セッションは使い捨て
 - `.devteam/` は継続状態
-- `current-*` は最新状態に上書きする
-- `decisions`, `source-log`, `deviations`, `audit` などは履歴として残す
-- 会話全文ではなく、決定事項・未解決事項・次アクションだけを残す
-
-<br>
-
-# 今後の想定
-
-最初は以下の 3 command だけで運用を始めます。
-
-- `/devteam:dt-init`
-- `/devteam:dt-discover`
-- `/devteam:dt-handoff`
-
-必要に応じて今後追加しうる command の例:
-
-- `/devteam:dt-plan`
-- `/devteam:dt-audit`
-- `/devteam:dt-biz-brief`
+- ユーザーは原則、保存先ファイルを毎回指定しなくてよい
+- Claude は依頼内容を見て `.devteam/` の適切なファイルを選んで更新する
+- 細かいメモや一時情報は `archive/notes.md` に寄せる
+- まずは少数ファイルで回し、必要なら後から拡張する
 
 <br>
 
