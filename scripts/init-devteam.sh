@@ -3,17 +3,21 @@
 set -eu
 
 usage() {
-  echo "Usage: $0 [TARGET_DIR] [--overwrite]" >&2
+  echo "Usage: $0 [TARGET_DIR] [--overwrite] [--clean]" >&2
   exit 1
 }
 
 TARGET_DIR="."
 OVERWRITE=0
+CLEAN=0
 
 for arg in "$@"; do
   case "$arg" in
     --overwrite)
       OVERWRITE=1
+      ;;
+    --clean)
+      CLEAN=1
       ;;
     *)
       if [ "$TARGET_DIR" = "." ]; then
@@ -34,6 +38,10 @@ DEST_DIR=$TARGET_DIR/.devteam
   echo "Template directory not found: $TEMPLATE_DIR" >&2
   exit 1
 }
+
+if [ "$CLEAN" -eq 1 ] && [ -d "$DEST_DIR" ]; then
+  rm -rf "$DEST_DIR"
+fi
 
 mkdir -p "$DEST_DIR"
 

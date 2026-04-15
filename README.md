@@ -77,6 +77,28 @@ sh ~/.claude/plugins/marketplaces/claude-devteam/scripts/init-devteam.sh .
 
 `~/.claude/plugins/marketplaces/claude-devteam/` は plugin install 後に Claude Code が保持する marketplace の標準配置先です。
 
+既存の `.devteam/` を新しい構成へ入れ替えたい場合は、古い内容を消して再生成します。
+
+```bash
+sh ~/.claude/plugins/marketplaces/claude-devteam/scripts/init-devteam.sh . --clean
+```
+
+plugin 側の template や script を更新した直後に古い構成が生成される場合は、Claude Code が旧 marketplace cache を使っている可能性があります。その場合は以下を実行して plugin を入れ直してください。
+
+```text
+/plugin uninstall devteam
+/plugin marketplace remove claude-devteam
+/plugin marketplace add Ryota098/claude-devteam
+/plugin install devteam@claude-devteam
+/reload-plugins
+```
+
+その後、あらためて以下を実行します。
+
+```bash
+sh ~/.claude/plugins/marketplaces/claude-devteam/scripts/init-devteam.sh . --clean
+```
+
 ## 2. 既存案件なら discover
 
 既存コードや docs の把握が必要なら、続けてこれを実行します。
