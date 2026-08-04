@@ -1,286 +1,369 @@
-# claude-devteam
+# claude-devteam — AI開発フロー テンプレート集
 
-`claude-devteam` は、Claude Code 上で `.devteam/` を使った開発運用を始めるための plugin です。
+役割別AIセッション（PM / Tech Lead / 実装担当 / 監査AI×2）で開発を進めるためのテンプレートと運用規約のマスターリポジトリ。
 
-これは「AI が自律的に開発する plugin」ではなく、**開発用ドキュメント基盤を揃え、更新しやすくする plugin** です。
+## 構成
 
-- 初期化では、少数の共通テンプレートを `.devteam/` に配置します
-- `discover` では、既存コードや docs を読んで `.devteam/` を更新します
-- `handoff` では、次セッション向けに状態を圧縮して残します
-- 実装、調査、監査の実行自体は、ユーザーが Claude に依頼して進めます
-
-<br>
-
-# 目次
-
-- [できること](#できること)
-- [インストール](#インストール)
-- [クイックスタート](#クイックスタート)
-- [最小構成](#最小構成)
-- [3つの command](#3つの-command)
-- [日常運用フロー](#日常運用フロー)
-- [Claude への頼み方](#claude-への頼み方)
-- [運用ルール](#運用ルール)
-- [ライセンス](#ライセンス)
-
-<br>
-
-# できること
-
-- `.devteam/` の deterministic な初期構成を shell script で作る
-- 既存案件の理解を `.devteam/` の少数ファイルへ整理する
-- セッション切替時に handoff を残す
-- 監査用の summary prompt / audit prompt を共通化する
-
-<br>
-
-# インストール
-
-Claude Code で以下を実行します。
-
-```text
-/plugin marketplace add Ryota098/claude-devteam
+```
+claude-devteam/
+├── README.md                        # このファイル（運用手順）
+├── CLAUDE.md                        # 各プロジェクトのルートへコピーする共通規約
+├── claude/skills/                   # Claude Code用の役割Skill（マスター）
+│   ├── pm/SKILL.md                  # /pm          プロジェクトマネージャー
+│   ├── tech-lead/SKILL.md           # /tech-lead   技術判断
+│   ├── implementer/SKILL.md         # /implementer 実装＋テスト
+│   └── auditor/SKILL.md             # /auditor     Claude監査
+├── codex/skills/auditor/            # Codex用の監査Skill（$auditor。agents/openai.yaml同梱）
+├── claude/settings.json             # プロジェクトへコピーするガードレール雛形（git変更操作のdeny）
+└── scripts/install.sh               # ローカル環境への配備スクリプト
 ```
 
-```text
-/plugin install devteam@claude-devteam
+**このリポジトリを `~/.claude/skills/` へ直接cloneしないこと。**
+マスターはここに置き、install.shでコピーする。
+
+**役割Skillはすべて明示呼び出し専用。** Claude側の `disable-model-invocation: true`
+とCodex側の `agents/openai.yaml`（`allow_implicit_invocation: false`）により、
+ユーザーが `/pm` 等を打たない限り自動発動しない。claude-devteamを使わない
+プロジェクトのセッションが勝手に役割モードへ入ることを防ぐため、この設定を外さない。
+
+## セットアップ（最初に1回）
+
+```sh
+sh scripts/install.sh
 ```
 
-```text
-/reload-plugins
+これで全プロジェクトから `/pm` `/tech-lead` `/implementer` `/auditor`（Claude Code）と
+Codex監査 `$auditor` が使えるようになる。
+テンプレを改訂したら、このリポジトリで編集 → コミット → install.sh再実行。
+
+## プロジェクトごとの準備（プロジェクトにつき1回）
+
+```sh
+cp ~/Desktop/claude-devteam/CLAUDE.md <プロジェクトルート>/CLAUDE.md
+mkdir -p <プロジェクトルート>/.claude
+cp ~/Desktop/claude-devteam/claude/settings.json <プロジェクトルート>/.claude/settings.json
 ```
 
-`/plugin install` 直後は、そのセッションで plugin command を使えるようにするため `/reload-plugins` が必要です。
+`docs/flow/` はPMが最初の機能開発時に自動作成するので事前準備は不要。
+（Codex監査セッションにも規約を効かせるため、AGENTS.mdをCLAUDE.mdへの
+シンボリックリンクとして作成するか、内容を反映する）
 
-scope の目安:
+### ガードレール（ルールの物理的な強制）
 
-- `user scope`
-  - 自分の複数プロジェクトで使う通常運用向け
-- `project scope`
-  - その repository の共同開発者にも同じ plugin を前提化したい時
-- `local scope`
-  - その repository だけで試す時
+「git変更操作はオーナーのみ」はテンプレの文章だけでなく、ツール設定でも強制する。
 
-通常運用では `user scope`、動作確認では `local scope` を推奨します。
+- **Claude Code側**: 上でコピーした `.claude/settings.json` が git 変更系コマンド
+  （add / commit / push / checkout / merge / reset / tag / branch / gh pr 等）を
+  deny し、読み取り系（status / log / diff / show / blame）のみ allow する。
+  既存の settings.json があるプロジェクトでは permissions をマージする
+- **Codex側**: `~/.codex/config.toml` に以下を設定する（全プロジェクト共通）
 
-<br>
+  ```toml
+  approval_policy = "on-request"
+  sandbox_mode    = "workspace-write"
+  ```
 
-# クイックスタート
+  workspace-write サンドボックスでは `.git` などの保護パスへの書き込みが
+  ブロックされるため、コミット等のgit変更操作は承認なしには実行されない。
+  より厳しくするなら `approval_policy = "untrusted"`（シェルコマンド全般に承認要求）
+- **CI**: テスト・lint・型チェックはプロジェクトのCIで必須化する（このリポジトリの
+  管轄外だが、フローの前提。CLAUDE.mdにも完了条件として明記済み）
 
-## 1. 初期化
+## 機能開発の流れ
 
-対象プロジェクト配下で Claude Code を起動し、次を実行します。
+役割ごとにセッションを分け、受け渡しはファイルパスで行う。
+あなた（ユーザー）の承認ゲートは従来どおり2つ: 実装前サマリ承認と最終クローズ判定。
 
-```bash
-sh ~/.claude/plugins/marketplaces/claude-devteam/scripts/init-devteam.sh .
+```
+1. PM        : プロジェクトdirで claude → /pm → 決定事項を伝える
+               → 壁打ち → spec.md / tasks.md / task-01/instruction.md を書き出す
+2. 実装担当   : 別セッションで claude → /implementer → 「task-01/instruction.md を読んで」
+               → pre-summary.md 提出 → ★あなたが承認 → 実装＋テスト
+               → あなたがfeatureブランチへコミット → report.md / summary.md 書き出し
+3. PM        : 「report.md を確認して」→ 裏取り → audit-request.md 書き出し
+4. 監査       : 新規セッション×2（Claude: /auditor、Codex: $auditor）
+               → 「audit-request.md を読んで監査して」
+               → audit-codex.md / audit-claude.md 書き出し
+5. PM        : 監査2件を整理 → audit-triage.md
+               → 修正必要なら実装担当へ（2へ戻る。原則2ラウンドまで）
+               → 「今すぐ直すべき」ゼロ → ★あなたがクローズ判定 → 完了
 ```
 
-`~/.claude/plugins/marketplaces/claude-devteam/` は plugin install 後に Claude Code が保持する marketplace の標準配置先です。
+## チュートリアル: 1機能を通しで開発する
 
-既存の `.devteam/` を新しい構成へ入れ替えたい場合は、古い内容を消して再生成します。
+「ログイン機能」を例に、セッションの立ち上げからクローズまで、
+あなたが実際に打つ言葉レベルで示す。
 
-```bash
-sh ~/.claude/plugins/marketplaces/claude-devteam/scripts/init-devteam.sh . --clean
+### 全体マップ
+
+```
+Step 1        Step 2              Step 3      Step 4     Step 5
+PMが準備 ──▶ 実装＋テスト ──▶ PMが裏取り ──▶ 監査×2 ──▶ PMが整理
+spec/tasks/   ★ゲート1:          audit-      audit-      audit-
+指示書        サマリ承認          request     codex/      triage
+                 ▲                            claude        │
+                 │                                          │
+                 └────── Step 6 修正指示（原則2ラウンド）◀──┤ 修正必要あり
+                                                            │
+                                          「今すぐ直すべき」ゼロ
+                                                            ▼
+                                              Step 7 ★ゲート2: クローズ判定
 ```
 
-plugin 側の template や script を更新した直後に古い構成が生成される場合は、Claude Code が旧 marketplace cache を使っている可能性があります。その場合は以下を実行して plugin を入れ直してください。
+覚えることは5つだけ:
 
-```text
-/plugin uninstall devteam
-/plugin marketplace remove claude-devteam
-/plugin marketplace add Ryota098/claude-devteam
-/plugin install devteam@claude-devteam
-/reload-plugins
+1. あなたが**判断する場面は2つ**（★ゲート1: 実装前サマリ承認、★ゲート2: クローズ判定）
+2. あなたが**運ぶのはファイルパス1行**（内容のコピペは不要。AI同士はファイル経由で読み合う）
+3. **監査だけ毎回新規セッション**（PM・実装担当は同じセッションを使い続ける）
+4. **git変更操作（add / commit / branch / push）はすべてあなたが実行**（AIは変更ファイルと推奨メッセージを提示して依頼してくるだけ。読み取りはAIも可）
+5. **次に何をするかは各セッションが教えてくれる**。工程完了ごとに「要約 → 書き出したパス → 次のアクション → 次のセッションへ貼るプロンプト」の形で報告してくるので、あなたは提示されたプロンプトを次のセッションへコピペするだけでよい（この手順書を暗記する必要はない）
+
+### 登場するセッション
+
+| セッション | 立ち上げ方 | 寿命 |
+|---|---|---|
+| PM | プロジェクトdirで `claude` → `/pm` | 機能開発のあいだ維持 |
+| 実装担当 | 別セッションで `claude` → `/implementer` | 機能開発のあいだ維持 |
+| Tech Lead | 必要時のみ `claude` → `/tech-lead` | 相談ごと |
+| Claude監査 | 監査ごとに新規 `claude` → `/auditor` | 使い捨て |
+| Codex監査 | 監査ごとに新規 `codex` → `$auditor` | 使い捨て |
+
+あなたの承認ゲートは2つ: **実装前サマリの承認** と **最終クローズ判定**。
+それ以外のあなたの仕事は「パスを1行伝える」ことと「質問に答える」こと。
+
+### Step 1. PMセッションを立ち上げ、要件を伝える
+
+```
+cd <プロジェクト>
+claude
 ```
 
-その後、あらためて以下を実行します。
-
-```bash
-sh ~/.claude/plugins/marketplaces/claude-devteam/scripts/init-devteam.sh . --clean
+```
+あなた: /pm
+あなた: ログイン機能を開発します。MTG決定事項は以下です。
+        - メール+パスワードでログインできる
+        - 失敗5回でロック
+        - セッションは24時間有効
 ```
 
-## 2. 既存案件なら discover
+PMはプロジェクトのドキュメントを読み、全体像・注意点・不明点を返してくる。
+以降もPMは勝手に次工程へ進まないので、あなたが「次へ」と指示して進める。
 
-既存コードや docs の把握が必要なら、続けてこれを実行します。
-
-```text
-/devteam:dt-discover
+```
+PM   : （全体像の報告と質問）ロック解除の手段は決まっていますか？
+あなた: 管理者による手動解除のみです。壁打ちを進めてください
+PM   : （壁打ちの質問リスト）
+あなた: （回答する）実装ドキュメントにまとめてください
+PM   : docs/flow/login/spec.md に書き出しました
+あなた: タスク分割してください
+PM   : docs/flow/login/tasks.md に書き出しました
+あなた: task-01の指示書を作成してください
+PM   : docs/flow/login/task-01/instruction.md に書き出しました
+        （featureブランチ名とbase commitも指示書に記載済み）
 ```
 
-新規案件や、まだ実装がほぼ無い段階では通常不要です。
+### Step 2. 実装担当に指示書を渡す 【★ゲート1】
 
-## 3. セッション切替時は handoff
+別ターミナルで:
 
-作業を切り替える前にこれを実行します。
-
-```text
-/devteam:dt-handoff
+```
+cd <プロジェクト>
+claude
 ```
 
-<br>
-
-# 最小構成
-
-この plugin は、まず以下の少数ファイルを中心に回す想定です。
-
-```text
-.devteam/
-├── README.md
-├── CLAUDE.md
-├── current/
-│   ├── spec.md
-│   ├── task.md
-│   └── handoff.md
-├── context/
-│   ├── project.md
-│   ├── decisions.md
-│   └── research.md
-├── review/
-│   ├── api-summary-prompt.md
-│   ├── frontend-summary-prompt.md
-│   ├── api-audit-prompt.md
-│   ├── frontend-audit-prompt.md
-│   ├── implementation-summary.md
-│   └── audit.md
-└── archive/
-    └── notes.md
+```
+あなた: /implementer
+あなた: docs/flow/login/task-01/instruction.md を読んで作業を開始してください
+実装 : （指示書・spec.md・既存コードを確認）不明点が2つあります。〜〜
+あなた: （回答する）
+実装 : docs/flow/login/task-01/pre-summary.md に実装前サマリを書き出しました
 ```
 
-日常的に主に見るのは以下です。
+実装担当は、指示書・spec・既存実装のあいだに矛盾や技術的な違和感を見つけた
+場合、従う前にあなたへ指摘してくる（実装前サマリにも指摘欄がある）。
+指摘が出たらPMセッションへ持ち帰る:
 
-- `current/spec.md`
-- `current/task.md`
-- `current/handoff.md`
-- `review/audit.md`
+```
+あなた: （PMセッションで）実装担当から指摘が出ています。
+        task-01/pre-summary.md の指摘事項を確認してください
+PM   : 指摘は妥当です。spec.md と instruction.md を修正しました
+```
 
-<br>
+★ゲート1: pre-summary.md を読み、問題なければ承認する。
 
-# 3つの command
+```
+あなた: 承認します。実装に進んでください
+実装 : ブランチ作成をお願いします: git switch -c feature/login <base commit>
+あなた: （実行して）作成しました
+実装 : （実装＋テスト）完了しました。コミットをお願いします。
+        変更ファイル: 〜〜 / 推奨メッセージ: feat: ログインAPIを追加
+あなた: （git add / commit を実行）コミットしました
+実装 : docs/flow/login/task-01/report.md と summary.md に書き出しました
+```
 
-- `/devteam:dt-init`
-  - shell script 初期化を案内する補助 command
-- `/devteam:dt-discover`
-  - 既存 docs とソースコードを読み、`context/project.md` と `current/*` を更新する command
-- `/devteam:dt-handoff`
-  - 現在の状態を `current/handoff.md` に圧縮して残す command
+git変更操作（add / commit / branch / push）はすべてあなたが行う。
+実装担当は作業単位ごとに変更ファイルと推奨メッセージを提示して依頼してくる。
 
-<br>
+### Step 3. PMに完了報告を裏取りさせ、監査依頼を作らせる
 
-# 日常運用フロー
+```
+あなた: docs/flow/login/task-01/report.md を確認してください
+PM   : （report.mdを読み、コードと突き合わせて裏取り）問題ありません。
+        docs/flow/login/task-01/audit-request.md に監査依頼を書き出しました
+```
 
-## 1. 壁打ち・調査
+### Step 4. 監査セッションを2つ新規で立ち上げる
 
-- 主に使うファイル
-  - `current/spec.md`
-  - `context/research.md`
-  - `context/decisions.md`
-- Claude への依頼例
-  - 「この機能の目的、利用者、成功条件を整理して `.devteam/current/spec.md` にまとめて」
-  - 「競合や参考実装を調べて `.devteam/context/research.md` に整理して」
-  - 「重要な判断だけ `.devteam/context/decisions.md` に残して」
+Claude側（新規セッション）:
 
-## 2. ドキュメント更新
+```
+あなた: /auditor
+あなた: docs/flow/login/task-01/audit-request.md を読んで監査してください
+監査 : docs/flow/login/task-01/audit-claude.md に書き出しました
+        監査結果: クローズ可
+```
 
-- 主に使うファイル
-  - `current/spec.md`
-  - `context/decisions.md`
-- Claude への依頼例
-  - 「今の壁打ち結果を反映して、必要な `.devteam` を更新して」
-  - 「仕様変更があれば `.devteam/current/spec.md` と `.devteam/context/decisions.md` を更新して」
+Codex側（新規セッション、`codex` で起動）:
 
-## 3. タスク出し
+```
+あなた: $auditor
+あなた: docs/flow/login/task-01/audit-request.md を読んで監査してください
+監査 : docs/flow/login/task-01/audit-codex.md に書き出しました
+        監査結果: 修正必要
+```
 
-- 主に使うファイル
-  - `current/task.md`
-  - `current/spec.md`
-- Claude への依頼例
-  - 「この仕様を実装タスクへ分解して `.devteam/current/task.md` に反映して」
-  - 「今やる 1 タスクだけ明確にして」
+### Step 5. PMセッションで監査結果を整理させる
 
-## 4. 実装 / テスト / 検証
+```
+あなた: 監査結果2件を整理してください
+PM   : docs/flow/login/task-01/audit-triage.md に整理しました。
+        今すぐ直すべき: 1件（ロック回数の境界値テスト欠落）
+        次タスクでよい: 2件 / 残リスク: 1件
+```
 
-- 主に使うファイル
-  - `current/spec.md`
-  - `current/task.md`
-  - 必要なら `context/decisions.md`
-- Claude への依頼例
-  - 「このタスクを実装して。必要なら関連 docs も更新して」
-  - 「テストまで追加して、必要なら `.devteam/current/spec.md` も更新して」
+### Step 6. 修正指示 → 再監査（原則2ラウンドまで）
 
-## 5. 実装後のサマリ作成
+実装担当セッションに戻る:
 
-- API 実装後
-  - `review/api-summary-prompt.md`
-- Frontend 実装後
-  - `review/frontend-summary-prompt.md`
-- 保存先
-  - `review/implementation-summary.md`
-- Claude への依頼例
-  - 「`.devteam/review/api-summary-prompt.md` に従って仕様サマリを作り、`.devteam/review/implementation-summary.md` に保存して」
-  - 「`.devteam/review/frontend-summary-prompt.md` に従って仕様サマリを作り、`.devteam/review/implementation-summary.md` に保存して」
+```
+あなた: docs/flow/login/task-01/audit-triage.md の修正指示に対応してください
+実装 : （修正）コミットをお願いします。推奨メッセージ: fix: ロック回数の境界値テストを追加
+あなた: （コミットする）
+実装 : report.md を更新しました
+```
 
-## 6. 監査
+PMセッションで再監査依頼を作らせ、Step 4を繰り返す
+（再監査は前回からの差分中心。監査結果は audit-codex-2.md 等に書かれる）。
 
-- API 監査
-  - `review/api-audit-prompt.md`
-- Frontend 監査
-  - `review/frontend-audit-prompt.md`
-- 保存先
-  - `review/audit.md`
-- Claude への依頼例
-  - 「`.devteam/review/api-audit-prompt.md` に従って監査して。結果を `.devteam/review/audit.md` にまとめて」
-  - 「`.devteam/review/frontend-audit-prompt.md` に従って監査して。結果を `.devteam/review/audit.md` にまとめて」
+### Step 7. クローズ判定 【★ゲート2】
 
-## 7. 修正
+★ゲート2: 両監査の「今すぐ直すべき」がゼロになったら、あなたが判定する。
 
-- 主に使うファイル
-  - `review/audit.md`
-  - 必要なら `review/implementation-summary.md`
-- Claude への依頼例
-  - 「`.devteam/review/audit.md` の指摘を反映して修正して」
-  - 「修正後に必要なら `.devteam/review/implementation-summary.md` を更新して」
+```
+あなた: （audit-triage.md を確認して）クローズします。task-02へ進めてください
+PM   : docs/flow/login/task-02/instruction.md に書き出しました
+```
 
-## 8. セッション切り替え
+以降、Step 2〜7をタスクごとに繰り返す。全タスク完了後、PMに全体整合性
+チェック（テンプレのステップ7）をさせてから、マージ・PR作成を指示する。
 
-- 主に使うファイル
-  - `current/handoff.md`
-  - 必要なら `current/task.md`
-- Claude への依頼例
-  - 「`/devteam:dt-handoff` を実行して次セッション向けに整理して」
+### Step 8. 後片付け（機能全体のクローズ後）
 
-<br>
+工程ファイルは開発中の受け渡し用。機能が閉じたら、確定した仕様を正式
+ドキュメントへ反映したうえでディレクトリごと削除する（証跡はgit履歴に残る）。
 
-# Claude への頼み方
+```
+あなた: （PMセッションで）後片付けの指示書を作成してください
+PM   : docs/flow/login/task-cleanup/instruction.md に書き出しました
+あなた: （実装担当セッションで）docs/flow/login/task-cleanup/instruction.md を
+        読んで対応してください
+実装 : spec.md の確定内容を docs/ の正式ドキュメントへ反映し、
+        docs/flow/login/ を削除しました。コミットをお願いします
+あなた: （コミットする）
+```
 
-普段はファイル名を細かく指定しなくて構いません。必要な保存先は Claude が `.devteam/` 内で判断する前提です。
+これで docs/flow/ には進行中の機能だけが残り、リポジトリが膨らまない。
+過去機能の工程記録・監査結果を見たくなったら git 履歴から辿れる。
 
-- そのまま使える依頼例
-  - 「この機能の要件を整理して、必要な `.devteam` を更新して」
-  - 「今やるべきタスクをまとめて、必要な `.devteam` を更新して」
-  - 「実装してテストして、必要なら docs も更新して」
-  - 「監査に回せる状態にして」
-  - 「次セッション向けに `.devteam` を整理して」
+### 途中でTech Lead相談が発生した場合
 
-slash command を使うのは定型処理だけです。
+PMまたは実装担当が「Tech Lead相談条件に該当する」と報告してきたら:
 
-- `/devteam:dt-discover`
-  - 既存案件の理解を一気に進めたい時
-- `/devteam:dt-handoff`
-  - セッションを切り替えたい時
+```
+あなた: （PMセッションで）Tech Lead相談資料を作成してください
+PM   : docs/flow/login/tech-lead/jwt-aud互換性.md に書き出しました
+```
 
-<br>
+新規セッションで:
 
-# 運用ルール
+```
+あなた: /tech-lead
+あなた: docs/flow/login/tech-lead/jwt-aud互換性.md を読んで判断してください
+TL   : （判断結果を同ディレクトリに書き出し）
+```
 
-- 会話セッションは使い捨て
-- `.devteam/` は継続状態
-- ユーザーは原則、保存先ファイルを毎回指定しなくてよい
-- Claude は依頼内容を見て `.devteam/` の適切なファイルを選んで更新する
-- 細かいメモや一時情報は `archive/notes.md` に寄せる
-- まずは少数ファイルで回し、必要なら後から拡張する
+PMセッションに戻り「Tech Leadの判断が出ました。〜〜-decision.md を確認して
+spec.mdへ反映してください」と伝える。
 
-<br>
+### 軽量パスを使う場合
 
-# ライセンス
+小規模な変更（数ファイル・100行未満、外部IF/データ/認証に無関係、
+挙動変更なし）では、PMに軽量パスを提案させることができる:
 
-MIT
+```
+あなた: /pm
+あなた: READMEの手順修正です。軽量パスでお願いします
+PM   : 軽量パス条件に該当します。壁打ちを省略し、
+        docs/flow/readme-fix/task-01/instruction.md を作成しました
+```
+
+実装前サマリなしで実装へ進み、監査は1AIのみでクローズできる。
+条件に1つでも外れる場合、PMは通常フローを要求してくる。
+
+### チートシート: あなたが打つ言葉一覧
+
+1タスク分の流れを、あなたの発言だけ抜き出したもの。迷ったらここを見る。
+
+| # | セッション | あなたが打つ言葉 | 返ってくるもの |
+|---|---|---|---|
+| 1 | PM | `/pm` → MTG決定事項を伝える | 全体像の報告と質問 |
+| 2 | PM | 「壁打ちを進めてください」→ 質問に回答 | 壁打ちの質問リスト |
+| 3 | PM | 「実装ドキュメントにまとめてください」 | spec.md |
+| 4 | PM | 「タスク分割してください」 | tasks.md |
+| 5 | PM | 「task-01の指示書を作成してください」 | task-01/instruction.md |
+| 6 | 実装 | `/implementer` → 「task-01/instruction.md を読んで作業を開始してください」 | 質問・指摘 → pre-summary.md |
+| 7 | 実装 | ★「承認します。実装に進んでください」 | 実装＋テスト → コミット依頼（あなたが実行） → report.md / summary.md |
+| 8 | PM | 「task-01/report.md を確認してください」 | 裏取り → audit-request.md |
+| 9 | 監査×2（毎回新規） | `/auditor`（Claude）/`$auditor`（Codex） → 「task-01/audit-request.md を読んで監査してください」 | audit-codex.md / audit-claude.md |
+| 10 | PM | 「監査結果2件を整理してください」 | audit-triage.md |
+| 11 | 実装 | 「task-01/audit-triage.md の修正指示に対応してください」（修正必要時のみ） | 修正 → コミット依頼（あなたが実行） → report.md 更新 → 9へ戻る |
+| 12 | PM | ★「クローズします。task-02へ進めてください」 | task-02/instruction.md |
+| 13 | PM | 「後片付けの指示書を作成してください」（機能全体のクローズ後） | task-cleanup/instruction.md |
+| 14 | 実装 | 「task-cleanup/instruction.md を読んで対応してください」 | docs反映 → docs/flow/<機能名>/ 削除 → コミット依頼（あなたが実行） |
+
+★ = あなたの承認ゲート。6〜12をタスクごとに繰り返し、機能全体が閉じたら13〜14で後片付けする。
+
+### よくある質問
+
+- **PMの回答を実装担当へコピペする必要は？** → ない。すべてファイル経由。
+  あなたが運ぶのはパス1行だけ
+- **セッションを閉じてしまったら？** → 成果物はすべて docs/flow/ にあるので、
+  同じ役割プロンプトで立ち上げ直し「docs/flow/<機能名>/ を読んで状況を
+  把握してください」から再開できる
+- **監査セッションを使い回していい？** → 不可。監査は毎回新規で立ち上げる
+  （独立性の担保）。再監査も新規セッションでよい
+- **機能開発の途中でテンプレを改訂したくなったら？** → メモしておき、
+  機能クローズ後に改訂して install.sh を再実行する
+
+## 運用ルールの要点
+
+- **監査の一次ソースはPMのspec.md。** 実装担当のsummary.mdは「実装側の主張」として突き合わせる
+- **監査境界は `git diff <base>..HEAD`。** 監査依頼にブランチ名とbase commitを必ず書く
+- **クローズ条件は「今すぐ直すべき」ゼロ＋あなたの判定。** 監査は原則2ラウンドまで、3ラウンド目はTech Lead相談へ
+- **PMはリポジトリを一切変更しない。** コメント追加・ファイル削除などの軽作業も実装担当へ
+- **git変更操作はすべてオーナー（あなた）が行う。** PM / Tech Lead / 実装担当 / 監査のいずれもadd・commit・branch作成・checkout・pushを実行しない。実装担当は作業単位ごとに変更ファイルと推奨コミットメッセージを提示して依頼してくる。読み取り（status / log / diff）はAIも可
+- **軽量パス**（小規模・外部IF/データ/認証に無関係・挙動変更なし）はPMテンプレの条件を満たし、あなたが承認した場合のみ。壁打ち・実装前サマリ省略、監査1AI
+- **Codex監査とClaude監査の両方を維持する。** 異種モデル監査がこのフローの独立性の実体
+- **監査セッションは毎回新規で立ち上げる**（再監査で前回指摘との差分を見る場合を除く）
+- **工程ファイルは開発中にコミットし、機能クローズ後に削除する。** gitignoreはしない（証跡が履歴に残らなくなる）。削除前に spec.md の確定内容を正式ドキュメントへ反映する（PMテンプレのステップ8）
+- **重要ルールはプロンプトだけでなく設定で強制する。** git変更操作の禁止は `.claude/settings.json` のdenyとCodexのサンドボックス設定で物理的にブロックし、品質検証はCI（テスト・lint・型チェック必須）で担保する
