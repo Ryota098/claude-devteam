@@ -24,4 +24,5 @@ rm -rf "$HOME/.agents/skills/auditor"
 cp -R "$repo_dir/codex/skills/auditor" "$HOME/.agents/skills/auditor"
 echo "installed: codex auditor skill -> ~/.agents/skills/auditor/"
 
+echo "note: existing projects are not rewritten; replace each project's CLAUDE.md with $repo_dir/CLAUDE.md when common rules change"
 echo "done"
