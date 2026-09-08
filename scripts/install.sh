@@ -47,7 +47,7 @@ if [ -f "$HOME/.codex/prompts/auditor.md" ]; then
   echo "removed legacy: ~/.codex/prompts/auditor.md"
 fi
 
-echo "note: restart Codex/Claude sessions to load the installed lifecycle hooks"
+echo "note: restart sessions only if lifecycle hook configuration was added or changed; otherwise reread the updated common rules and current role Skill in the existing session"
 echo "note: ai-devteam is opt-in; roleless sessions stay normal until an explicit Skill runs flowctl role-start"
 echo "note: existing projects are not rewritten; replace each project's CLAUDE.md with $repo_dir/CLAUDE.md when common rules change"
 echo "note: run ~/.ai-devteam/bin/flowctl diagnose --project-root <project> after replacing CLAUDE.md"
