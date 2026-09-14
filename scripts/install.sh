@@ -1,12 +1,11 @@
 #!/bin/sh
-# claude-devteamのSkill、flowctl、hooks、Codex監査用profileを配備する。
+# claude-devteamのSkill、安全ガード、hooks、Codex監査用profileを配備する
 set -eu
 
 repo_dir=$(cd "$(dirname "$0")/.." && pwd)
 
 python3 -B -m unittest discover -s "$repo_dir/tests" >/dev/null
-python3 -B "$repo_dir/claude/skills/pm/scripts/validate_handoff.py" --self-test >/dev/null
-echo "verified: flowctl regression tests and handoff validator"
+echo "verified: flowctl regression tests"
 
 mkdir -p "$HOME/.claude/skills"
 if [ -d "$HOME/.claude/skills/tech-lead" ]; then
@@ -29,9 +28,11 @@ runtime_dir="$HOME/.ai-devteam/bin"
 mkdir -p "$runtime_dir"
 cp "$repo_dir/scripts/flowctl.py" "$runtime_dir/flowctl"
 cp "$repo_dir/scripts/flowctl_lib.py" "$runtime_dir/flowctl_lib.py"
-cp "$repo_dir/claude/skills/pm/scripts/validate_handoff.py" "$runtime_dir/validate_handoff.py"
-chmod 755 "$runtime_dir/flowctl" "$runtime_dir/flowctl_lib.py" "$runtime_dir/validate_handoff.py"
+rm -f "$runtime_dir/validate_handoff.py"
+chmod 755 "$runtime_dir/flowctl" "$runtime_dir/flowctl_lib.py"
 echo "installed: flowctl runtime -> ~/.ai-devteam/bin/"
+echo "removed: obsolete handoff format validator"
+echo "note: workflow approval/state-sync commands are retired; existing task history is preserved and is not an execution gate"
 
 mkdir -p "$HOME/.codex"
 for profile in "$repo_dir"/codex/profiles/*.config.toml; do
