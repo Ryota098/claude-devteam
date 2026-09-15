@@ -1,11 +1,11 @@
 #!/bin/sh
-# claude-devteamのSkill、安全ガード、hooks、Codex監査用profileを配備する
+# claude-devteamのSkill、安全ガード、Codex監査用profileを配備する
 set -eu
 
 repo_dir=$(cd "$(dirname "$0")/.." && pwd)
 
 python3 -B -m unittest discover -s "$repo_dir/tests" >/dev/null
-echo "verified: flowctl regression tests"
+echo "verified: document workflow regression tests"
 
 mkdir -p "$HOME/.claude/skills"
 if [ -d "$HOME/.claude/skills/tech-lead" ]; then
@@ -26,13 +26,14 @@ echo "installed: codex auditor skill -> ~/.agents/skills/auditor/"
 
 runtime_dir="$HOME/.ai-devteam/bin"
 mkdir -p "$runtime_dir"
-cp "$repo_dir/scripts/flowctl.py" "$runtime_dir/flowctl"
-cp "$repo_dir/scripts/flowctl_lib.py" "$runtime_dir/flowctl_lib.py"
-rm -f "$runtime_dir/validate_handoff.py"
-chmod 755 "$runtime_dir/flowctl" "$runtime_dir/flowctl_lib.py"
-echo "installed: flowctl runtime -> ~/.ai-devteam/bin/"
-echo "removed: obsolete handoff format validator"
-echo "note: workflow approval/state-sync commands are retired; existing task history is preserved and is not an execution gate"
+python3 -B "$repo_dir/scripts/remove_legacy_role_hooks.py" \
+  "$HOME/.codex/hooks.json" \
+  "$HOME/.claude/settings.json"
+cp "$repo_dir/scripts/retired_flowctl_compat.py" "$runtime_dir/flowctl"
+rm -f "$runtime_dir/flowctl_lib.py" "$runtime_dir/validate_handoff.py"
+chmod 755 "$runtime_dir/flowctl"
+echo "removed: retired workflow hooks and engine"
+echo "installed: pass-through compatibility bridge for already-open sessions -> ~/.ai-devteam/bin/flowctl"
 
 mkdir -p "$HOME/.codex"
 for profile in "$repo_dir"/codex/profiles/*.config.toml; do
@@ -40,17 +41,13 @@ for profile in "$repo_dir"/codex/profiles/*.config.toml; do
 done
 echo "installed: codex least-privilege profiles -> ~/.codex/"
 
-python3 -B "$runtime_dir/flowctl" install-hooks --provider codex --executable "$runtime_dir/flowctl"
-python3 -B "$runtime_dir/flowctl" install-hooks --provider claude --executable "$runtime_dir/flowctl"
-
 if [ -f "$HOME/.codex/prompts/auditor.md" ]; then
   rm "$HOME/.codex/prompts/auditor.md"
   echo "removed legacy: ~/.codex/prompts/auditor.md"
 fi
 
-echo "note: restart sessions only if lifecycle hook configuration was added or changed; otherwise reread the updated common rules and current role Skill in the existing session"
-echo "note: ai-devteam is opt-in; roleless sessions stay normal until an explicit Skill runs flowctl role-start"
+echo "note: ai-devteam is opt-in; roleless sessions stay normal until an explicit Skill is invoked"
 echo "note: existing projects are not rewritten; copy $repo_dir/CLAUDE.md to each Claude project and the matching AGENTS.md to each Codex project when common rules change"
-echo "note: new role Skills explicitly reread the matching project rule; existing sessions need one reread but no restart unless hook settings changed"
+echo "note: new role Skills explicitly reread the matching project rule; existing sessions need one reread and do not need a restart"
 echo "note: Codex permission profiles are optional hardening; legacy sandbox_mode in ~/.codex/config.toml takes precedence and disables them"
 echo "done"
